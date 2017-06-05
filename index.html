@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>图片上传</title>
+    <style type="text/css">
+        .imagesBox{
+            width: 100px;
+        }
+        #myImg{
+            width: 100%;
+            height: 100px;
+            display: block;
+            border: 1px solid red;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="input" accept="image/*" >
+    <div class="imagesBox">
+        <img src="" id="myImg">
+    </div>
+    <script src="exif.min.js"></script>
+    <script>
+        var imgElem = document.querySelector(".imagesBox");
+        var fileElem = document.getElementById('input');
+        var myImg = document.getElementById('myImg');
+        var isSupportUpload = false;  //是否支持图片上传（安卓4.4可能有问题）
+
+        isSupportUploadImage();
+        if (isSupportUpload) {
+            fileElem.addEventListener('change',function(event){
+                var event = event || window.event;
+                var file = event.target.files[0];
+                if (!/jpeg|jpg|png|gif|bmp$/.test(file.type)) {
+                    alert('亲，只能选择图片哦~');
+                    return false;
+                } else if (file.size > 5 * 1024 * 1024) {
+                    alert('亲，请选择5M以内的图片~');
+                } else {
+                    var reader = new FileReader();
+                    event.target.value = ''; // input value 清空 同一张图片不能上传 的 BUG
+                    reader.onload = function () {
+                        var result = this.result;
+                        var img = new Image();
+                        img.src = result;
+                        img.onload = function() {
+                            var orient = getPhotoOrientation(this);
+                            var data = compressImg(img, orient, file.size);
+                            console.log(data);
+                            myImg.src = data;
+                        };
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        function getPhotoOrientation(img) {
+            var orient;
+            EXIF.getData(img, function () {
+                orient = EXIF.getTag(this, 'Orientation');
+            });
+            return orient;
+        }
+
+       function compressImg (img, orient, size) {
+            var width = img.width;
+            var height = img.height;
+            var degree = 0;
+            var drawWidth = width;
+            var drawHeight = height;
+            var canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            var ctx = canvas.getContext('2d');
+            // 如果图片大于1M，压缩图片
+            // http://blog.csdn.net/cdnight/article/details/46457241
+            // https://segmentfault.com/a/1190000004346191
+            // 判断图片方向，重置canvas大小，确定旋转角度，iphone默认的是home键在右方的横屏拍摄方式
+            switch (orient) {
+                case 3:
+                    // iphone横屏拍摄，此时home键在左侧
+                    degree = 180;
+                    drawWidth = -width;
+                    drawHeight = -height;
+                    break;
+                case 6:
+                    // iphone竖屏拍摄，此时home键在下方(正常拿手机的方向)
+                    canvas.width = height;
+                    canvas.height = width;
+                    degree = 90;
+                    drawWidth = width;
+                    drawHeight = -height;
+                    break;
+                case 8:
+                    // iphone竖屏拍摄，此时home键在上方
+                    canvas.width = height;
+                    canvas.height = width;
+                    degree = 270;
+                    drawWidth = -width;
+                    drawHeight = height;
+                    break;
+            }
+            ctx.rotate(degree * Math.PI / 180);
+            ctx.drawImage(img, 0, 0, drawWidth, drawHeight);
+            // 如果图片大于1M，压缩图片
+            var ratio;
+            if (size >= 1024 * 1024) {
+                ratio = 0.6;
+            } else {
+                ratio = 0.8;
+            }
+            var ndata = canvas.toDataURL('image/jpeg', ratio);
+            return ndata;
+        }
+
+       function isSupportUploadImage() {
+            if (window.File && window.FileReader && window.FileList && window.Blob) {
+                isSupportUpload=true
+            } else {
+                isSupportUpload=false
+            }
+       }
+
+    </script>
+</body>
+</html>
